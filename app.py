@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -7,7 +8,23 @@ st.set_page_config(page_title="📚 Library Manager", layout="wide")
 if 'db' not in st.session_state:
     try:
         if not firebase_admin._apps:
-            cred = credentials.Certificate("firebase_key.json")
+           
+            private_key = os.getenv("FIREBASE_PRIVATE_KEY")
+            if private_key is not None:
+                private_key = private_key.replace("\\n", "\n")
+            
+            cred = credentials.Certificate({
+                "type": os.getenv("FIREBASE_TYPE"),
+                "project_id": os.getenv("FIREBASE_PROJECT_ID"),
+                "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
+                "private_key": private_key,
+                "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
+                "client_id": os.getenv("FIREBASE_CLIENT_ID"),
+                "auth_uri": os.getenv("FIREBASE_AUTH_URI"),
+                "token_uri": os.getenv("FIREBASE_TOKEN_URI"),
+                "auth_provider_x509_cert_url": os.getenv("FIREBASE_AUTH_PROVIDER_X509_CERT_URL"),
+                "client_x509_cert_url": os.getenv("FIREBASE_CLIENT_X509_CERT_URL"),
+            })
             firebase_admin.initialize_app(cred)
             st.session_state.db = firestore.client()
             st.success("Firebase Initialized Successfully!")
