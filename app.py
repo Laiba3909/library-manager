@@ -28,12 +28,20 @@ def add_book(book_name):
 
 def get_books():
     books = db.collection("books").stream()
-    return [book.to_dict()["title"] for book in books]
+    book_list = []
+    for book in books:
+        book_data = book.to_dict()
+        if "title" in book_data:  # Check if 'title' exists in the document
+            book_list.append(book_data["title"])
+        else:
+            st.warning(f"Book document with ID {book.id} is missing a title field.")
+    return book_list
 
 def update_book(old_name, new_name):
     docs = db.collection("books").where("title", "==", old_name).stream()
     for doc in docs:
-        doc.reference.update({"title": new_name})
+        doc_ref = doc.reference
+        doc_ref.update({"title": new_name})
 
 def delete_book(book_name):
     docs = db.collection("books").where("title", "==", book_name).stream()
