@@ -1,154 +1,88 @@
-import os
 import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-st.set_page_config(page_title="📚 Library Manager", layout="wide")
+st.set_page_config(page_title="Library Manager", layout="wide")
 
 if 'db' not in st.session_state:
-    try:
-        if not firebase_admin._apps:
-            cred = credentials.Certificate({
-                "type": st.secrets["FIREBASE_TYPE"],
-                "project_id": st.secrets["FIREBASE_PROJECT_ID"],
-                "private_key_id": st.secrets["FIREBASE_PRIVATE_KEY_ID"],
-                "private_key": st.secrets["FIREBASE_PRIVATE_KEY"],
-                "client_email": st.secrets["FIREBASE_CLIENT_EMAIL"],
-                "client_id": st.secrets["FIREBASE_CLIENT_ID"],
-                "auth_uri": st.secrets["FIREBASE_AUTH_URI"],
-                "token_uri": st.secrets["FIREBASE_TOKEN_URI"],
-                "auth_provider_x509_cert_url": st.secrets["FIREBASE_AUTH_PROVIDER_X509_CERT_URL"],
-                "client_x509_cert_url": st.secrets["FIREBASE_CLIENT_X509_CERT_URL"],
-            })
-            firebase_admin.initialize_app(cred)
-            st.session_state.db = firestore.client()
-            st.success("✅ Firebase Initialized Successfully!")
-        else:
-            st.session_state.db = firestore.client()
-            st.success("ℹ️ Firebase already initialized!")
-    except Exception as e:
-        st.error(f"❌ Error initializing Firebase: {e}")
+    if not firebase_admin._apps:
+        cred = credentials.Certificate({
+            "type": st.secrets["FIREBASE_TYPE"],
+            "project_id": st.secrets["FIREBASE_PROJECT_ID"],
+            "private_key_id": st.secrets["FIREBASE_PRIVATE_KEY_ID"],
+            "private_key": st.secrets["FIREBASE_PRIVATE_KEY"],
+            "client_email": st.secrets["FIREBASE_CLIENT_EMAIL"],
+            "client_id": st.secrets["FIREBASE_CLIENT_ID"],
+            "auth_uri": st.secrets["FIREBASE_AUTH_URI"],
+            "token_uri": st.secrets["FIREBASE_TOKEN_URI"],
+            "auth_provider_x509_cert_url": st.secrets["FIREBASE_AUTH_PROVIDER_X509_CERT_URL"],
+            "client_x509_cert_url": st.secrets["FIREBASE_CLIENT_X509_CERT_URL"],
+        })
+        firebase_admin.initialize_app(cred)
+    st.session_state.db = firestore.client()
+
+db = st.session_state.db
 
 def add_book(book_name):
-    if 'db' not in st.session_state:
-        st.error("Firebase not initialized!")
-        return
-    doc_ref = st.session_state.db.collection("books").document(book_name)
-    doc_ref.set({"name": book_name})
+    db.collection("books").add({"title": book_name})
 
 def get_books():
-    if 'db' not in st.session_state:
-        st.error("Firebase not initialized!")
-        return []
-    books = st.session_state.db.collection("books").stream()
-    return [doc.to_dict()["name"] for doc in books]
+    books = db.collection("books").stream()
+    return [book.to_dict()["title"] for book in books]
 
 def update_book(old_name, new_name):
-    if 'db' not in st.session_state:
-        st.error("Firebase not initialized!")
-        return
-    doc_ref = st.session_state.db.collection("books").document(old_name)
-    doc = doc_ref.get()
-
-    if doc.exists:
-        doc_ref.update({"name": new_name})
-    else:
-        st.error(f"Book '{old_name}' does not exist anymore.")
+    docs = db.collection("books").where("title", "==", old_name).stream()
+    for doc in docs:
+        doc.reference.update({"title": new_name})
 
 def delete_book(book_name):
-    if 'db' not in st.session_state:
-        st.error("Firebase not initialized!")
-        return
-    doc_ref = st.session_state.db.collection("books").document(book_name)
-    doc_ref.delete()
+    docs = db.collection("books").where("title", "==", book_name).stream()
+    for doc in docs:
+        doc.reference.delete()
 
-st.markdown("""
-    <style>
-    .main {
-        background-color: #f4f4f9;
-        font-family: 'Arial', sans-serif;
-        padding: 20px;
-        border-radius: 10px;
-    }
-    .stButton>button {
-        background-color: #41228e;
-        color: white;
-        border: none;
-        border-radius: 5px;
-        padding: 10px 20px;
-        font-size: 16px;
-        cursor: pointer;
-    }
-    .stButton>button:hover {
-        background-color: #deab7f;
-    }
-    .sidebar .sidebar-content {
-        background-color: #41228e;
-        color: white;
-    }
-    h1 {
-        color: #41228e;
-        font-size: 2.5rem;
-        font-weight: bold;
-    }
-    h3, h5 {
-        color: #41228e;
-    }
-    .stSelectbox {
-        background-color: #deab7f;
-    }
-    </style>
-""", unsafe_allow_html=True)
+st.title("Library Manager 📚")
+st.divider()
 
-st.title("📚 Firebase Book Library")
-st.markdown("<hr>", unsafe_allow_html=True)
-
-menu = st.sidebar.radio("Choose Action", ["Add Book", "Search Book", "Edit Book", "Delete Book"])
+menu = st.sidebar.radio("Choose an action", ["Add Book", "View Books", "Update Book", "Delete Book"])
 
 if menu == "Add Book":
-    st.subheader("Add a New Book")
-    book = st.text_input("Book Name")
+    book_name = st.text_input("Enter the book name:")
     if st.button("Add Book"):
-        if book:
-            add_book(book)
-            st.success(f"Successfully added: {book}")
-            st.rerun()
+        if book_name:
+            add_book(book_name)
+            st.success(f"Book '{book_name}' added!")
         else:
             st.warning("Please enter a book name.")
 
-elif menu == "Search Book":
-    st.subheader("Books Available in Library:")
+elif menu == "View Books":
     books = get_books()
     if books:
+        st.write("Books in Library:")
         for book in books:
             st.markdown(f"- {book}")
     else:
-        st.warning("No books found in the library.")
+        st.warning("No books available.")
 
-elif menu == "Edit Book":
-    st.subheader("Edit an Existing Book")
+elif menu == "Update Book":
     books = get_books()
     if books:
-        selected_book = st.selectbox("Choose a Book to Edit", books)
-        new_name = st.text_input("Enter New Name for the Book", value=selected_book)
+        old_name = st.selectbox("Select a book to update", books)
+        new_name = st.text_input("New Book Name", value=old_name)
         if st.button("Update Book"):
-            if new_name and new_name != selected_book:
-                update_book(selected_book, new_name)
-                st.success(f"Successfully updated: {selected_book} to {new_name}")
-                st.rerun()
-            elif new_name == selected_book:
-                st.warning("New name cannot be the same as the old name.")
+            if new_name and new_name != old_name:
+                update_book(old_name, new_name)
+                st.success(f"Book updated: '{old_name}' to '{new_name}'")
+            elif new_name == old_name:
+                st.warning("New name can't be the same as the old name.")
     else:
-        st.warning("No books found to edit.")
+        st.warning("No books to update.")
 
 elif menu == "Delete Book":
-    st.subheader("Delete a Book")
     books = get_books()
     if books:
-        selected_book = st.selectbox("Choose a Book to Delete", books)
+        book_to_delete = st.selectbox("Select a book to delete", books)
         if st.button("Delete Book"):
-            delete_book(selected_book)
-            st.success(f"Successfully deleted: {selected_book}")
-            st.rerun()
+            delete_book(book_to_delete)
+            st.success(f"Book '{book_to_delete}' deleted!")
     else:
-        st.warning("No books found to delete.")
+        st.warning("No books to delete.")
